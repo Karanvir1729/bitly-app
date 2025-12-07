@@ -3,7 +3,18 @@ version: "3"
 services:
   redis:
     image: redis:7
-    command: ["redis-server", "--save", "20", "1", "--loglevel", "warning"]
+    command: [
+      "redis-server",
+      "--save", "20", "1",
+      "--loglevel", "warning",
+      "--maxmemory", "${REDIS_MAXMEMORY:-256mb}",
+      "--maxmemory-policy", "${REDIS_EVICTION_POLICY:-allkeys-lru}",
+      "--appendonly", "yes",
+      "--appendfsync", "everysec",
+      "--aof-use-rdb-preamble", "yes"
+    ]
+    volumes:
+      - redis-data:/data
     networks:
       - backend
     deploy:
@@ -35,3 +46,6 @@ networks:
   backend:
     driver: overlay
 
+volumes:
+  redis-data:
+    driver: local
