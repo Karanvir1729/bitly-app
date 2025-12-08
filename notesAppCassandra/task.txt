@@ -1,0 +1,103 @@
+Here is a concrete task that is very close in spirit to your url shortener, but different enough that you will have to touch most parts of the Cassandra Python API yourself. It is split into steps so you can test each bit.
+
+Goal: build a tiny “notes” REST API using Flask + Cassandra.
+Each note has an id, a title, and a body.
+
+Cassandra context: many nodes, client connects to any node, nodes coordinate writes and reads with replication and tunable consistency. 
+
+---
+
+## Part 1: Bare Cassandra Python script
+
+Write a standalone Python script `notes_setup.py` that:
+
+1. Connects to a Cassandra cluster
+
+   * Cluster contact points: use some fake ones now or your real IPs if you have the cluster.
+   * `cluster = Cluster([...])`, `session = cluster.connect()`.
+
+2. Creates a keyspace if it does not exist
+
+   * Name it `notesapp`.
+   * Use `SimpleStrategy` and `replication_factor = 3`.
+
+3. Switches to that keyspace
+
+   * `session.set_keyspace("notesapp")`.
+
+4. Creates a table `notes` if it does not exist
+
+   * Columns:
+
+     * `id uuid PRIMARY KEY`
+     * `title text`
+     * `body text`
+
+5. Inserts a single test note and then reads it back and prints it.
+
+Requirements:
+
+* Use `uuid` module in Python for `id`.
+* Use `session.prepare` for both insert and select.
+* Run the script and confirm it prints the same title/body you inserted.
+
+---
+
+## Part 2: Minimal REST API
+
+Create `app.py` using Flask that exposes two endpoints:
+
+1. `POST /notes`
+
+   * JSON body: `{"title": "...", "body": "..."}`.
+   * Validate types and presence.
+   * Generate a new `uuid` for the note.
+   * Insert into Cassandra using a prepared statement.
+   * Return JSON: `{"id": "<uuid>", "title": "...", "body": "..."}` with HTTP 201.
+
+2. `GET /notes/<id>`
+
+   * `id` is a string uuid in the URL.
+   * Parse it to a `uuid.UUID` object.
+   * Select from Cassandra, return 404 if not found.
+   * If found, return JSON: `{"id": "<uuid>", "title": "...", "body": "..."}`.
+
+Other requirements:
+
+* Reuse a single `Cluster` and `Session` at module level (similar to your shortener code).
+* Use prepared statements for both endpoints.
+* Handle invalid UUID in the path with a 400 error.
+
+---
+
+## Part 3: Practice consistency levels
+
+Extend your code to understand how consistency tuning works:
+
+1. When you create the `Cluster`, configure a default consistency level for queries, or set it per statement. Try at least:
+
+   * `ConsistencyLevel.ONE`
+   * `ConsistencyLevel.QUORUM`
+
+2. Add a query parameter to the GET endpoint:
+
+   * `GET /notes/<id>?cl=one` or `?cl=quorum`
+   * Map these strings to the corresponding consistency levels and apply them to the select statement.
+
+3. Log on the server side which consistency level you used for each request.
+
+You may not see visible differences on a tiny local setup, but this step forces you to actually use Cassandra’s consistency API.
+
+---
+
+## Part 4: Extra stretch
+
+If you want to push a bit further:
+
+* Add `GET /notes` to list the last N notes (pick some simple primary-key pattern, or add a `created_at` column and use `ALLOW FILTERING` just for learning).
+* Add `DELETE /notes/<id>`.
+* Add basic health check endpoint `GET /health` that tries a trivial Cassandra query and reports if the DB is reachable.
+
+---
+
+If you start with Part 1 and post your `notes_setup.py`, I can help you debug and tighten your usage of the Cassandra API step by step.

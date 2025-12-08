@@ -3,30 +3,20 @@ from flask import Flask, request, jsonify, redirect, abort
 from cassandra.cluster import Cluster
 import os
 
-# Defaults pointing at your cluster:
-# 10.128.0.3, 10.128.0.4, 10.128.0.5 with RF=3
-CASSANDRA_CONTACT_POINTS = os.getenv(
-    "CASSANDRA_CONTACT_POINTS",
-    "10.128.0.3,10.128.0.4,10.128.0.5",
-)
-CASSANDRA_KEYSPACE = os.getenv("CASSANDRA_KEYSPACE", "urlshortener")
-CASSANDRA_RF = int(os.getenv("CASSANDRA_RF", "3"))
 
-contact_points = [h.strip() for h in CASSANDRA_CONTACT_POINTS.split(",") if h.strip()]
-
-cluster = Cluster(contact_points)
+cluster = Cluster(['10.128.0.3','10.128.0.4','10.128.0.5'])
 session = cluster.connect()
 
 # Create keyspace if needed
 session.execute(f"""
-    CREATE KEYSPACE IF NOT EXISTS {CASSANDRA_KEYSPACE}
+    CREATE KEYSPACE IF NOT EXISTS urlshortener
     WITH replication = {{
         'class': 'SimpleStrategy',
-        'replication_factor': {CASSANDRA_RF}
+        'replication_factor': 3
     }}
 """)
 
-session.set_keyspace(CASSANDRA_KEYSPACE)
+session.set_keyspace("urlshortner")
 
 # Create table if needed
 session.execute("""
